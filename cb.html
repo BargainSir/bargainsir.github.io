@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PD2 Crushing Blow vs Prime Evils — HP over hits</title>
+  <style>
+    :root{
+      --bg: #0f1115;
+      --panel: #161a22;
+      --ink: #e7ebf2;
+      --muted: #96a0b5;
+      --accent: #4fd1c5;
+      --accent-2: #f6ad55;
+      --grid: #222838;
+      --ok: #68d391;
+      --warn: #f6ad55;
+      --bad: #fc8181;
+      --link: #90cdf4;
+      --border: #242a3a;
+      --shadow: 0 6px 20px rgba(0,0,0,0.35);
+      --header-h: 60px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+    header {
+      padding: 12px 14px 6px 14px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+    }
+    header h1 {
+      font-size: 18px;
+      margin: 0 0 4px 0;
+      letter-spacing: 0.2px;
+    }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .app {
+      width: 100%;
+      padding: 10px;
+      min-height: calc(100vh - var(--header-h));
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 320px minmax(420px, 1fr) 330px;
+      grid-template-rows: auto;
+      grid-template-areas: "left center right";
+      gap: 10px;
+      width: 100%;
+      max-width: 1800px;
+      margin: 0 auto;
+      align-items: stretch;
+      min-height: calc(100vh - var(--header-h) - 20px);
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+    .panel h2 {
+      margin: 0;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--muted);
+      letter-spacing: .3px;
+    }
+    .controls { grid-area: left; display: flex; flex-direction: column; }
+    .chart-wrap { grid-area: center; display: flex; flex-direction: column; }
+    .side { grid-area: right; display: flex; flex-direction: column; gap: 10px; }
+
+    .content { padding: 12px; }
+    .fields {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .field {
+      display: grid;
+      grid-template-columns: 1fr minmax(120px, 160px);
+      gap: 8px;
+      align-items: center;
+    }
+    .field label { color: var(--muted); font-size: 12px; }
+    .field input[type="number"] {
+      width: 100%;
+      background: #0c0f15;
+      color: var(--ink);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      outline: none;
+    }
+    .field input[type="number"]:focus {
+      border-color: #334155;
+      box-shadow: 0 0 0 2px rgba(79,209,197,0.2);
+    }
+
+    .chart-inner { padding: 8px 12px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+    .legend {
+      display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 0 6px;
+    }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+    .legend-swatch { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+    .legend .cb { background: var(--accent-2); box-shadow: 0 0 0 2px rgba(246,173,85,0.25); }
+    .legend .nocb { background: var(--accent); box-shadow: 0 0 0 2px rgba(79,209,197,0.25); }
+    .legend .dead { background: linear-gradient(90deg, var(--bad), var(--warn)); height: 3px; }
+
+    .canvas-wrap {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+    }
+    /* Fill more vertical space while staying responsive; JS will scale canvas for crispness */
+    canvas {
+      width: 100%;
+      height: clamp(360px, 68vh, 900px);
+      border-radius: 10px;
+      background: #0b0e14;
+      border: 1px solid var(--border);
+      display: block;
+    }
+
+    .summary { }
+    .summary .content { display: grid; gap: 10px; }
+    .kpis {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .kpi {
+      background: #0c0f15;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .kpi .label { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+    .kpi .value { font-size: 16px; font-weight: 600; }
+    .kpi.good .value { color: var(--ok); }
+    .kpi.warn .value { color: var(--warn); }
+    .kpi.bad .value { color: var(--bad); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 8px 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+    .foot-note {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+      padding: 8px 12px 12px 12px;
+    }
+
+    @media (max-aspect-ratio: 1/1), (max-width: 980px) {
+      .grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "left"
+          "center"
+          "right";
+      }
+      /* Allow a bit more height on portrait */
+      canvas { height: clamp(320px, 76vh, 980px); }
+      .kpis { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Crushing Blow vs Prime Evils — HP progression per hit</h1>
+    <p>
+      CB formula: damage = currentHP × 1 / (70 + missing_hp_pct × 10), multiplied by (1 + extra efficiency%).
+      Deterministic CB: chance is accumulated and applied at fixed steps.
+    </p>
+  </header>
+
+  <div class="app">
+    <div class="grid">
+      <!-- Controls -->
+      <section class="panel controls">
+        <h2>Parameters</h2>
+        <div class="content">
+          <div class="fields">
+            <div class="field">
+              <label for="nHits">Max hits (N)</label>
+              <input id="nHits" type="number" min="1" step="1" value="1000">
+            </div>
+            <div class="field">
+              <label for="maxHP">Target max HP</label>
+              <input id="maxHP" type="number" min="1" step="1000" value="5896800">
+            </div>
+            <div class="field">
+              <label for="flatDmg">Flat damage per hit</label>
+              <input id="flatDmg" type="number" min="0" step="100" value="5000">
+            </div>
+            <div class="field">
+              <label for="cbChance">CB proc chance %</label>
+              <input id="cbChance" type="number" min="0" max="100" step="1" value="100">
+            </div>
+            <div class="field">
+              <label for="cbExtra">CB extra efficiency %</label>
+              <input id="cbExtra" type="number" min="0" step="1" value="0">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Chart -->
+      <section class="panel chart-wrap">
+        <h2>HP over hits</h2>
+        <div class="chart-inner">
+          <div class="legend">
+            <div class="legend-item">
+              <span class="legend-swatch cb"></span> With CB
+            </div>
+            <div class="legend-item">
+              <span class="legend-swatch nocb"></span> Without CB
+            </div>
+            <div class="legend-item">
+              <span class="legend-swatch dead"></span> 0 HP
+            </div>
+            <div class="legend-item" id="legend-window" style="margin-left:auto;color:var(--muted)"></div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart"></canvas>
+          </div>
+        </div>
+        <div class="foot-note">
+          Tip: Hover the chart to inspect HP after a given hit. The plot auto-fits to N or until death and renders at device pixel ratio for crisp text at any zoom.
+        </div>
+      </section>
+
+      <!-- Right side: Summary + Breakpoints -->
+      <section class="side">
+        <section class="panel summary">
+          <h2>Summary</h2>
+          <div class="content">
+            <div class="kpis">
+              <div class="kpi" id="kpi-cb-ttk">
+                <div class="label">Hits to kill (with CB)</div>
+                <div class="value" id="val-cb-ttk">–</div>
+              </div>
+              <div class="kpi" id="kpi-nocb-ttk">
+                <div class="label">Hits to kill (no CB)</div>
+                <div class="value" id="val-nocb-ttk">–</div>
+              </div>
+              <div class="kpi good" id="kpi-dps">
+                <div class="label">DPS% with CB (same #hits window)</div>
+                <div class="value" id="val-dps">–</div>
+              </div>
+              <div class="kpi" id="kpi-window">
+                <div class="label">Comparison window (hits)</div>
+                <div class="value" id="val-window">–</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>HP% breakpoints → hits needed</h2>
+          <div class="content">
+            <table>
+              <thead>
+                <tr>
+                  <th>HP%</th>
+                  <th>With CB</th>
+                  <th>Without CB</th>
+                </tr>
+              </thead>
+              <tbody id="bp-body"></tbody>
+            </table>
+          </div>
+          <div class="foot-note">
+            Values show the earliest hit after which HP is at or below the threshold.
+            0% means the target is dead. “–” means not reached within N hits.
+          </div>
+        </section>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // Utilities
+    const fmt = (n) => {
+      if (n === null || n === undefined) return "–";
+      if (Number.isNaN(n)) return "–";
+      return n.toLocaleString(undefined);
+    };
+    const fmtFixed = (n, p=2) => {
+      if (n === null || n === undefined) return "–";
+      if (Number.isNaN(n)) return "–";
+      return n.toLocaleString(undefined, {maximumFractionDigits:p, minimumFractionDigits:p});
+    };
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v || 0));
+    const getEl = (id) => document.getElementById(id);
+
+    // Parameters (bound to inputs)
+    const inputs = {
+      nHits: getEl('nHits'),
+      maxHP: getEl('maxHP'),
+      flatDmg: getEl('flatDmg'),
+      cbChance: getEl('cbChance'),
+      cbExtra: getEl('cbExtra'),
+    };
+
+    // State
+    const state = {
+      nHits: 1000,
+      maxHP: 5896800,
+      flatDmg: 5000,
+      cbChancePct: 100,
+      cbExtraPct: 0,
+    };
+
+    // Keep header height CSS var accurate to let grid fill viewport nicely
+    function updateHeaderHeightVar() {
+      const header = document.querySelector('header');
+      if (!header) return;
+      const h = Math.round(header.getBoundingClientRect().height);
+      document.documentElement.style.setProperty('--header-h', h + 'px');
+    }
+    window.addEventListener('resize', updateHeaderHeightVar);
+    updateHeaderHeightVar();
+
+    function readParams() {
+      const nHits = Math.max(1, Math.floor(Number(inputs.nHits.value || 1000)));
+      const maxHP = Math.max(1, Math.floor(Number(inputs.maxHP.value || 5896800)));
+      const flatDmg = Math.max(0, Math.floor(Number(inputs.flatDmg.value || 0)));
+      const cbChancePct = clamp(Number(inputs.cbChance.value || 0), 0, 100);
+      const cbExtraPct = Number(inputs.cbExtra.value || 0);
+      state.nHits = nHits;
+      state.maxHP = maxHP;
+      state.flatDmg = flatDmg;
+      state.cbChancePct = cbChancePct;
+      state.cbExtraPct = cbExtraPct;
+    }
+
+    // Core simulation
+    function simulate({nHits, maxHP, flatDmg, cbChancePct, cbExtraPct}) {
+      const hpNo = [];
+      const hpCB = [];
+      const dmgNoPerHit = [];
+      const dmgCBPerHit = [];
+
+      let curNo = maxHP;
+      let curCB = maxHP;
+
+      let cbMeter = 0; // accumulates CB chance to make deterministic
+      const cbChance = cbChancePct / 100;
+      const cbMult = 1 + (cbExtraPct / 100);
+
+      let killHitNo = null;
+      let killHitCB = null;
+
+      for (let i = 1; i <= nHits; i++) {
+        // Without CB
+        if (curNo > 0) {
+          const dealt = Math.min(flatDmg, curNo);
+          curNo -= dealt;
+          dmgNoPerHit.push(dealt);
+          if (curNo <= 0 && killHitNo === null) killHitNo = i;
+        } else {
+          dmgNoPerHit.push(0);
+        }
+        hpNo.push(Math.max(0, curNo));
+
+        // With CB
+        if (curCB > 0) {
+          cbMeter += cbChance;
+          let procs = Math.floor(cbMeter);
+          if (procs > 0) cbMeter -= procs;
+
+          // Apply CB procs sequentially on current HP at each proc
+          let cbDamageThisHit = 0;
+          while (procs > 0 && curCB > 0) {
+            const missingPct = (1 - (curCB / maxHP)) * 100; // 0..100
+            const frac = 1 / (70 + missingPct * 10);
+            let d = curCB * frac * cbMult;
+            d = Math.max(0, Math.min(d, curCB));
+            curCB -= d;
+            cbDamageThisHit += d;
+            procs--;
+          }
+          // Flat damage after CB
+          let fd = Math.min(flatDmg, Math.max(0, curCB));
+          curCB -= fd;
+          dmgCBPerHit.push(cbDamageThisHit + fd);
+
+          if (curCB <= 0 && killHitCB === null) killHitCB = i;
+        } else {
+          dmgCBPerHit.push(0);
+        }
+        hpCB.push(Math.max(0, curCB));
+      }
+
+      return {
+        hpNo, hpCB,
+        dmgNoPerHit, dmgCBPerHit,
+        killHitNo, killHitCB,
+        maxHP, nHits
+      };
+    }
+
+    // Breakpoints
+    const bpPercents = [50, 25, 10, 5, 1, 0.1, 0];
+
+    function hitsToReach(arr, maxHP, pct) {
+      const thr = (pct <= 0 ? 0 : maxHP * (pct / 100));
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i] <= thr) return i + 1; // hits are 1-indexed
+      }
+      return null;
+    }
+
+    function buildBreakpoints(sim) {
+      const rows = bpPercents.map(p => {
+        const withCB = hitsToReach(sim.hpCB, sim.maxHP, p);
+        const noCB  = hitsToReach(sim.hpNo, sim.maxHP, p);
+        return { p, withCB, noCB };
+      });
+      return rows;
+    }
+
+    // DPS% computation
+    function computeDpsPercent(sim) {
+      const w1 = sim.killHitCB ?? sim.nHits;
+      const w2 = sim.killHitNo ?? sim.nHits;
+      const window = Math.min(sim.nHits, w1, w2);
+
+      let dmgCB = 0, dmgNo = 0;
+      for (let i = 0; i < window; i++) {
+        dmgCB += sim.dmgCBPerHit[i] || 0;
+        dmgNo += sim.dmgNoPerHit[i] || 0;
+      }
+      const dpsPct = (dmgNo > 0) ? (dmgCB / dmgNo) * 100 : (dmgCB > 0 ? 9999 : 100);
+      return { dpsPct, window };
+    }
+
+    // Canvas (HiDPI crisp text + lines)
+    const canvas = getEl('chart');
+    const ctx = canvas.getContext('2d', { alpha: false });
+
+    function resizeCanvasForDPR() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const cssW = Math.max(1, Math.round(rect.width));
+      const cssH = Math.max(1, Math.round(rect.height));
+      const needResize = (canvas.width !== cssW * dpr) || (canvas.height !== cssH * dpr);
+      if (needResize) {
+        canvas.width = cssW * dpr;
+        canvas.height = cssH * dpr;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw using CSS pixel coordinates
+      return { cssW, cssH, dpr };
+    }
+
+    let hover = { x: null, idx: null };
+    let latestSim = null;
+
+    function draw(sim) {
+      const { cssW: W, cssH: H } = resizeCanvasForDPR();
+
+      ctx.clearRect(0, 0, W, H);
+
+      const pad = { l: 56, r: 16, t: 16, b: 40 };
+      const gw = W - pad.l - pad.r;
+      const gh = H - pad.t - pad.b;
+
+      const n = sim.nHits;
+      const yMax = sim.maxHP;
+
+      // helpers
+      const xAt = (i) => pad.l + (gw * (i / Math.max(1, n - 1)));
+      const yAt = (hp) => {
+        const v = clamp(hp, 0, yMax);
+        const frac = v / yMax; // 0..1
+        return pad.t + gh * (1 - frac);
+      };
+
+      // grid
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#1b2130';
+      ctx.fillStyle = '#aaa';
+
+      // y ticks (0%, 25%, 50%, 75%, 100%)
+      const yTicks = [0, 0.25, 0.5, 0.75, 1];
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      yTicks.forEach(fr => {
+        const hp = yMax * fr;
+        const y = Math.round(yAt(hp)) + 0.5; // align for crispness
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.moveTo(pad.l, y);
+        ctx.lineTo(W - pad.r, y);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#96a0b5';
+        ctx.fillText(`${fmtFixed((1 - fr) * 100, 0)}%`, pad.l - 8, y);
+      });
+
+      // x ticks (10 ticks)
+      const ticks = Math.min(10, n);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      for (let t = 0; t <= ticks; t++) {
+        const i = Math.round((n - 1) * (t / ticks));
+        const x = Math.round(xAt(i)) + 0.5;
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, pad.t);
+        ctx.lineTo(x, H - pad.b);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#96a0b5';
+        ctx.fillText(`${i+1}`, x, H - pad.b + 6);
+      }
+
+      // zero line (HP=0)
+      ctx.strokeStyle = '#fc8181';
+      ctx.setLineDash([4, 4]);
+      const yZero = Math.round(yAt(0)) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(pad.l, yZero);
+      ctx.lineTo(W - pad.r, yZero);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw series
+      function drawLine(arr, color) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = color;
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const x = xAt(i);
+          const y = yAt(arr[i] ?? 0);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      drawLine(sim.hpCB, '#f6ad55'); // with CB
+      drawLine(sim.hpNo, '#4fd1c5'); // no CB
+
+      // Hover
+      if (hover.idx !== null) {
+        const i = clamp(hover.idx, 0, n - 1);
+        const x = xAt(i);
+
+        // vertical line
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3,3]);
+        ctx.beginPath();
+        ctx.moveTo(Math.round(x) + 0.5, pad.t);
+        ctx.lineTo(Math.round(x) + 0.5, H - pad.b);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // markers
+        const yCB = yAt(sim.hpCB[i]);
+        const yNo = yAt(sim.hpNo[i]);
+        const drawDot = (x, y, color) => {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        };
+        drawDot(x, yCB, '#f6ad55');
+        drawDot(x, yNo, '#4fd1c5');
+
+        // tooltip
+        const boxW = 240, boxH = 70;
+        let bx = x + 10, by = pad.t + 10;
+        if (bx + boxW > W - 8) bx = x - boxW - 10;
+        if (by + boxH > H - pad.b - 8) by = H - pad.b - boxH - 8;
+        ctx.fillStyle = 'rgba(20,24,32,0.95)';
+        ctx.strokeStyle = '#242a3a';
+        ctx.lineWidth = 1;
+        if (!ctx.roundRect) {
+          // Polyfill path
+          ctx.beginPath();
+          const r = 8;
+          ctx.moveTo(bx + r, by);
+          ctx.arcTo(bx + boxW, by, bx + boxW, by + boxH, r);
+          ctx.arcTo(bx + boxW, by + boxH, bx, by + boxH, r);
+          ctx.arcTo(bx, by + boxH, bx, by, r);
+          ctx.arcTo(bx, by, bx + boxW, by, r);
+          ctx.closePath();
+        } else {
+          ctx.beginPath();
+          ctx.roundRect(bx, by, boxW, boxH, 8);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#96a0b5';
+        ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`After hit #${i+1}`, bx + 10, by + 8);
+        ctx.fillStyle = '#f6ad55';
+        ctx.fillText(`With CB:  ${fmt(Math.round(sim.hpCB[i]))} HP`, bx + 10, by + 26);
+        ctx.fillStyle = '#4fd1c5';
+        ctx.fillText(`No CB:    ${fmt(Math.round(sim.hpNo[i]))} HP`, bx + 10, by + 44);
+      }
+    }
+
+    // Mouse interactions (hover -> index)
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+
+      const pad = { l: 56, r: 16, t: 16, b: 40 };
+      const gw = rect.width - pad.l - pad.r;
+
+      if (x < pad.l || x > rect.width - pad.r) {
+        hover.idx = null;
+      } else {
+        const frac = (x - pad.l) / Math.max(1, gw);
+        const i = Math.round(frac * (state.nHits - 1));
+        hover.idx = clamp(i, 0, state.nHits - 1);
+      }
+      draw(latestSim);
+    });
+    canvas.addEventListener('mouseleave', () => {
+      hover.idx = null;
+      draw(latestSim);
+    });
+
+    // Summary + Breakpoints UI
+    function updateSummary(sim) {
+      const ttkCB = sim.killHitCB ? `${fmt(sim.killHitCB)} hits` : 'Not within N';
+      const ttkNo = sim.killHitNo ? `${fmt(sim.killHitNo)} hits` : 'Not within N';
+      getEl('val-cb-ttk').textContent = ttkCB;
+      getEl('val-nocb-ttk').textContent = ttkNo;
+
+      const { dpsPct, window } = computeDpsPercent(sim);
+      getEl('val-dps').textContent = `${fmtFixed(dpsPct, 2)}%`;
+      getEl('val-window').textContent = `${fmt(window)} hits`;
+
+      const kpiDps = getEl('kpi-dps');
+      kpiDps.classList.remove('good','bad','warn');
+      if (dpsPct > 105) kpiDps.classList.add('good');
+      else if (dpsPct < 95) kpiDps.classList.add('bad');
+      else kpiDps.classList.add('warn');
+
+      const legendWindow = getEl('legend-window');
+      legendWindow.textContent = `Compare over ${fmt(window)} hits`;
+    }
+
+    function updateBreakpoints(sim) {
+      const rows = buildBreakpoints(sim);
+      const tbody = getEl('bp-body');
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        const tdP = document.createElement('td');
+        const tdCB = document.createElement('td');
+        const tdNo = document.createElement('td');
+        tdP.textContent = `${r.p}%`;
+        tdCB.textContent = r.withCB ? fmt(r.withCB) : '–';
+        tdNo.textContent = r.noCB ? fmt(r.noCB) : '–';
+        tdCB.style.textAlign = 'right';
+        tdNo.style.textAlign = 'right';
+        tr.appendChild(tdP); tr.appendChild(tdCB); tr.appendChild(tdNo);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function recalcAndRender() {
+      readParams();
+      latestSim = simulate({
+        nHits: state.nHits,
+        maxHP: state.maxHP,
+        flatDmg: state.flatDmg,
+        cbChancePct: state.cbChancePct,
+        cbExtraPct: state.cbExtraPct
+      });
+      updateSummary(latestSim);
+      updateBreakpoints(latestSim);
+      draw(latestSim);
+    }
+
+    // Number inputs: wheel-to-adjust with modifiers
+    function decimalPlaces(num) {
+      const s = ("" + num);
+      const i = s.indexOf(".");
+      return i >= 0 ? s.length - i - 1 : 0;
+    }
+    function attachWheelStepper(input) {
+      input.addEventListener('wheel', (e) => {
+        // Only modify if pointer is actually over the input
+        e.preventDefault();
+        const stepAttr = input.step && input.step !== "any" ? parseFloat(input.step) : 1;
+        let step = isFinite(stepAttr) && stepAttr > 0 ? stepAttr : 1;
+        // Modifiers: Shift x10, Ctrl/Cmd x5, Alt x0.1
+        let mult = 1;
+        if (e.shiftKey) mult *= 10;
+        if (e.ctrlKey || e.metaKey) mult *= 5;
+        if (e.altKey) mult *= 0.1;
+        const dir = e.deltaY < 0 ? 1 : -1;
+
+        const min = input.min !== "" ? parseFloat(input.min) : -Infinity;
+        const max = input.max !== "" ? parseFloat(input.max) : Infinity;
+
+        let cur = parseFloat(input.value);
+        if (!isFinite(cur)) cur = 0;
+
+        let next = cur + dir * step * mult;
+
+        // Snap to step grid relative to min (or 0 if no min)
+        const base = isFinite(min) ? min : 0;
+        next = Math.round((next - base) / step) * step + base;
+
+        // clamp
+        next = clamp(next, min, max);
+
+        const dp = Math.max(decimalPlaces(step), 0);
+        input.value = next.toFixed(dp);
+
+        // Trigger recompute
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }, { passive: false });
+    }
+    Object.values(inputs).forEach(inp => {
+      inp.addEventListener('input', recalcAndRender);
+      inp.addEventListener('change', recalcAndRender);
+      attachWheelStepper(inp);
+    });
+
+    // Resize handlers (keep canvas crisp on zoom/resize)
+    let rAF = null;
+    function queueRedraw() {
+      if (rAF) cancelAnimationFrame(rAF);
+      rAF = requestAnimationFrame(() => {
+        rAF = null;
+        draw(latestSim);
+      });
+    }
+    window.addEventListener('resize', queueRedraw);
+    // Some browsers change devicePixelRatio without resize when zooming; this keeps it crisp
+    const dprMedia = matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    if (dprMedia && dprMedia.addEventListener) {
+      dprMedia.addEventListener('change', queueRedraw);
+    } else {
+      // Fallback: periodic check on visibility change
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) queueRedraw();
+      });
+    }
+
+    // Polyfill for rounded rect (older browsers)
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+      CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+        if (w < 2 * r) r = w / 2;
+        if (h < 2 * r) r = h / 2;
+        this.beginPath();
+        this.moveTo(x + r, y);
+        this.arcTo(x + w, y, x + w, y + h, r);
+        this.arcTo(x + w, y + h, x, y + h, r);
+        this.arcTo(x, y + h, x, y, r);
+        this.arcTo(x, y, x + w, y, r);
+        this.closePath();
+        return this;
+      }
+    }
+
+    // Initial render
+    recalcAndRender();
+  </script>
+</body>
+</html>
