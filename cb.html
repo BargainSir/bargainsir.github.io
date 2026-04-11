@@ -95,7 +95,8 @@
       align-items: center;
     }
     .field label { color: var(--muted); font-size: 12px; }
-    .field input[type="number"] {
+    .field input[type="number"],
+    .field select {
       width: 100%;
       background: #0c0f15;
       color: var(--ink);
@@ -105,7 +106,8 @@
       font-size: 13px;
       outline: none;
     }
-    .field input[type="number"]:focus {
+    .field input[type="number"]:focus,
+    .field select:focus {
       border-color: #334155;
       box-shadow: 0 0 0 2px rgba(79,209,197,0.2);
     }
@@ -127,7 +129,6 @@
       justify-content: center;
       padding: 4px;
     }
-    /* Fill more vertical space while staying responsive; JS will scale canvas for crispness */
     canvas {
       width: 100%;
       height: clamp(360px, 68vh, 900px);
@@ -177,7 +178,6 @@
           "center"
           "right";
       }
-      /* Allow a bit more height on portrait */
       canvas { height: clamp(320px, 76vh, 980px); }
       .kpis { grid-template-columns: 1fr; }
     }
@@ -186,8 +186,8 @@
 <body>
   <header>
     <h1>Crushing Blow vs Prime Evils — HP progression per hit</h1>
-    <p>
-      CB formula: damage = currentHP × 1 / (70 + missing_hp_pct × 10), multiplied by (1 + extra efficiency%).
+    <p id="formula-blurb">
+      CB formula: <span id="formula-string">damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + extra efficiency%).</span>
       Deterministic CB: chance is accumulated and applied at fixed steps.
     </p>
   </header>
@@ -200,8 +200,11 @@
         <div class="content">
           <div class="fields">
             <div class="field">
-              <label for="nHits">Max hits (N)</label>
-              <input id="nHits" type="number" min="1" step="1" value="1000">
+              <label for="cbFormula">CB formula</label>
+              <select id="cbFormula">
+                <option value="new" selected>New: 1 / (70 + missing% × 10)</option>
+                <option value="old">Old: 1 / (80 + (missing%)²)</option>
+              </select>
             </div>
             <div class="field">
               <label for="maxHP">Target max HP</label>
@@ -209,7 +212,7 @@
             </div>
             <div class="field">
               <label for="flatDmg">Flat damage per hit</label>
-              <input id="flatDmg" type="number" min="0" step="100" value="5000">
+              <input id="flatDmg" type="number" min="0" step="100" value="10000">
             </div>
             <div class="field">
               <label for="cbChance">CB proc chance %</label>
@@ -244,7 +247,7 @@
           </div>
         </div>
         <div class="foot-note">
-          Tip: Hover the chart to inspect HP after a given hit. The plot auto-fits to N or until death and renders at device pixel ratio for crisp text at any zoom.
+          Tip: Hover the chart to inspect HP after a given hit. The plot auto-fits to the no‑CB kill time (capped at 1000 hits) and renders at device pixel ratio for crisp text at any zoom.
         </div>
       </section>
 
@@ -290,7 +293,7 @@
           </div>
           <div class="foot-note">
             Values show the earliest hit after which HP is at or below the threshold.
-            0% means the target is dead. “–” means not reached within N hits.
+            0% means the target is dead. “–” means not reached within the current window.
           </div>
         </section>
       </section>
@@ -314,23 +317,24 @@
 
     // Parameters (bound to inputs)
     const inputs = {
-      nHits: getEl('nHits'),
       maxHP: getEl('maxHP'),
       flatDmg: getEl('flatDmg'),
       cbChance: getEl('cbChance'),
       cbExtra: getEl('cbExtra'),
+      cbFormula: getEl('cbFormula'),
     };
 
     // State
     const state = {
-      nHits: 1000,
+      nHits: 1000, // auto-calculated
       maxHP: 5896800,
       flatDmg: 5000,
       cbChancePct: 100,
       cbExtraPct: 0,
+      cbFormula: 'new',
     };
 
-    // Keep header height CSS var accurate to let grid fill viewport nicely
+    // Keep header height CSS var accurate
     function updateHeaderHeightVar() {
       const header = document.querySelector('header');
       if (!header) return;
@@ -340,21 +344,39 @@
     window.addEventListener('resize', updateHeaderHeightVar);
     updateHeaderHeightVar();
 
+    // Update formula blurb in header
+    function updateFormulaBlurb() {
+      const el = getEl('formula-string');
+      const t = state.cbFormula === 'old'
+        ? 'damage = currentHP × 1 / (80 + (missing%)<sup>2</sup>), multiplied by (1 + extra efficiency%).'
+        : 'damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + extra efficiency%).';
+      el.innerHTML = t;
+      // Recompute header height in case line wraps changed
+      updateHeaderHeightVar();
+    }
+
     function readParams() {
-      const nHits = Math.max(1, Math.floor(Number(inputs.nHits.value || 1000)));
       const maxHP = Math.max(1, Math.floor(Number(inputs.maxHP.value || 5896800)));
       const flatDmg = Math.max(0, Math.floor(Number(inputs.flatDmg.value || 0)));
       const cbChancePct = clamp(Number(inputs.cbChance.value || 0), 0, 100);
       const cbExtraPct = Number(inputs.cbExtra.value || 0);
-      state.nHits = nHits;
+      const cbFormula = inputs.cbFormula.value === 'old' ? 'old' : 'new';
+
       state.maxHP = maxHP;
       state.flatDmg = flatDmg;
       state.cbChancePct = cbChancePct;
       state.cbExtraPct = cbExtraPct;
+      state.cbFormula = cbFormula;
+    }
+
+    function computeAutoWindow(maxHP, flatDmg) {
+      if (flatDmg <= 0) return 1000; // can't kill without CB -> default to cap
+      const hits = Math.ceil(maxHP / flatDmg);
+      return clamp(hits, 1, 1000);
     }
 
     // Core simulation
-    function simulate({nHits, maxHP, flatDmg, cbChancePct, cbExtraPct}) {
+    function simulate({nHits, maxHP, flatDmg, cbChancePct, cbExtraPct, cbFormula}) {
       const hpNo = [];
       const hpCB = [];
       const dmgNoPerHit = [];
@@ -363,7 +385,7 @@
       let curNo = maxHP;
       let curCB = maxHP;
 
-      let cbMeter = 0; // accumulates CB chance to make deterministic
+      let cbMeter = 0; // deterministic accumulation
       const cbChance = cbChancePct / 100;
       const cbMult = 1 + (cbExtraPct / 100);
 
@@ -392,7 +414,9 @@
           let cbDamageThisHit = 0;
           while (procs > 0 && curCB > 0) {
             const missingPct = (1 - (curCB / maxHP)) * 100; // 0..100
-            const frac = 1 / (70 + missingPct * 10);
+            const frac = (cbFormula === 'old')
+              ? 1 / (80 + missingPct * missingPct)
+              : 1 / (70 + missingPct * 10);
             let d = curCB * frac * cbMult;
             d = Math.max(0, Math.min(d, curCB));
             curCB -= d;
@@ -650,8 +674,8 @@
 
     // Summary + Breakpoints UI
     function updateSummary(sim) {
-      const ttkCB = sim.killHitCB ? `${fmt(sim.killHitCB)} hits` : 'Not within N';
-      const ttkNo = sim.killHitNo ? `${fmt(sim.killHitNo)} hits` : 'Not within N';
+      const ttkCB = sim.killHitCB ? `${fmt(sim.killHitCB)} hits` : 'Not in window';
+      const ttkNo = sim.killHitNo ? `${fmt(sim.killHitNo)} hits` : 'Not in window';
       getEl('val-cb-ttk').textContent = ttkCB;
       getEl('val-nocb-ttk').textContent = ttkNo;
 
@@ -690,12 +714,18 @@
 
     function recalcAndRender() {
       readParams();
+      updateFormulaBlurb();
+
+      // Auto window: ceil(maxHP / flatDmg), capped at 1000; if flatDmg = 0 → 1000
+      state.nHits = computeAutoWindow(state.maxHP, state.flatDmg);
+
       latestSim = simulate({
         nHits: state.nHits,
         maxHP: state.maxHP,
         flatDmg: state.flatDmg,
         cbChancePct: state.cbChancePct,
-        cbExtraPct: state.cbExtraPct
+        cbExtraPct: state.cbExtraPct,
+        cbFormula: state.cbFormula
       });
       updateSummary(latestSim);
       updateBreakpoints(latestSim);
@@ -710,11 +740,9 @@
     }
     function attachWheelStepper(input) {
       input.addEventListener('wheel', (e) => {
-        // Only modify if pointer is actually over the input
         e.preventDefault();
         const stepAttr = input.step && input.step !== "any" ? parseFloat(input.step) : 1;
         let step = isFinite(stepAttr) && stepAttr > 0 ? stepAttr : 1;
-        // Modifiers: Shift x10, Ctrl/Cmd x5, Alt x0.1
         let mult = 1;
         if (e.shiftKey) mult *= 10;
         if (e.ctrlKey || e.metaKey) mult *= 5;
@@ -729,25 +757,25 @@
 
         let next = cur + dir * step * mult;
 
-        // Snap to step grid relative to min (or 0 if no min)
         const base = isFinite(min) ? min : 0;
         next = Math.round((next - base) / step) * step + base;
 
-        // clamp
         next = clamp(next, min, max);
 
         const dp = Math.max(decimalPlaces(step), 0);
         input.value = next.toFixed(dp);
 
-        // Trigger recompute
         input.dispatchEvent(new Event('input', { bubbles: true }));
       }, { passive: false });
     }
+
+    // Attach listeners
     Object.values(inputs).forEach(inp => {
       inp.addEventListener('input', recalcAndRender);
       inp.addEventListener('change', recalcAndRender);
-      attachWheelStepper(inp);
     });
+    // Wheel stepper only for numeric inputs
+    [inputs.maxHP, inputs.flatDmg, inputs.cbChance, inputs.cbExtra].forEach(inp => attachWheelStepper(inp));
 
     // Resize handlers (keep canvas crisp on zoom/resize)
     let rAF = null;
@@ -759,12 +787,10 @@
       });
     }
     window.addEventListener('resize', queueRedraw);
-    // Some browsers change devicePixelRatio without resize when zooming; this keeps it crisp
     const dprMedia = matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
     if (dprMedia && dprMedia.addEventListener) {
       dprMedia.addEventListener('change', queueRedraw);
     } else {
-      // Fallback: periodic check on visibility change
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) queueRedraw();
       });
