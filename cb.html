@@ -739,9 +739,6 @@
         const stepAttr = input.step && input.step !== "any" ? parseFloat(input.step) : 1;
         let step = isFinite(stepAttr) && stepAttr > 0 ? stepAttr : 1;
         let mult = 1;
-        if (e.shiftKey) mult *= 10;
-        if (e.ctrlKey || e.metaKey) mult *= 5;
-        if (e.altKey) mult *= 0.1;
         const dir = e.deltaY < 0 ? 1 : -1;
 
         const min = input.min !== "" ? parseFloat(input.min) : -Infinity;
