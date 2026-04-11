@@ -236,8 +236,9 @@
             <div class="field">
               <label for="cbFormula">CB formula</label>
               <select id="cbFormula">
-                <option value="new" selected>New: 1 / (70 + missing% × 10)</option>
-                <option value="old">Old: 1 / (80 + (missing%)^2)</option>
+                <option value="new" selected>Melee</option>
+                <option value="newRanged">Ranged</option>
+                <option value="old">Old</option>
               </select>
             </div>
             <div class="field">
@@ -385,9 +386,9 @@
     // Update formula blurb in header
     function updateFormulaBlurb() {
       const el = getEl('formula-string');
-      const t = state.cbFormula === 'old'
-        ? 'damage = currentHP × 1 / (80 + (missing%)^2), multiplied by (1 + efficiency%).'
-        : 'damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + efficiency%).';
+      const t = (state.cbFormula === 'old') ? 'damage = currentHP × 1 / (80 + (missing%)^2), multiplied by (1 + efficiency%).' : 
+                (state.cbFormula === 'newRanged') ? 'damage = currentHP × 1 / (70 + missing% × 10) / 1.5, multiplied by (1 + efficiency%).' : 
+                'damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + efficiency%).';
       el.innerHTML = t;
       // Recompute header height in case line wraps changed
       updateHeaderHeightVar();
@@ -399,7 +400,7 @@
       const flatDmg = Math.max(0, Math.floor(Number(inputs.flatDmg.value || 0)));
       const cbChancePct = clamp(Number(inputs.cbChance.value || 0), 0, 100);
       const cbExtraPct = Number(inputs.cbExtra.value || 0);
-      const cbFormula = inputs.cbFormula.value === 'old' ? 'old' : 'new';
+      const cbFormula = inputs.cbFormula.value || "new";
 
       state.maxHP = maxHP;
       state.PDR = PDR;
@@ -457,9 +458,9 @@
           let cbDamageThisHit = 0;
           while (procs > 0 && curCB > 0) {
             const missingPct = (1 - (curCB / maxHP)) * 100; // 0..100
-            const frac = (cbFormula === 'old')
-              ? 1 / (80 + missingPct * missingPct)
-              : 1 / (70 + missingPct * 10);
+            const frac = (cbFormula === 'old') ? 1 / (80 + missingPct * missingPct) : 
+                         (cbFormula === 'newRanged') ? 1 / (70 + missingPct * 10) / 1.5 : 
+                         1 / (70 + missingPct * 10);
 
             const baseCB = curCB * frac * cbMult; // before PDR
             const d = Math.min(Math.max(0, baseCB * physMult), curCB);
