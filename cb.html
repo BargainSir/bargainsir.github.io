@@ -201,7 +201,7 @@
               <label for="cbFormula">CB formula</label>
               <select id="cbFormula">
                 <option value="new" selected>New: 1 / (70 + missing% × 10)</option>
-                <option value="old">Old: 1 / (80 + (missing%)²)</option>
+                <option value="old">Old: 1 / (80 + (missing%)^2)</option>
               </select>
             </div>
             <div class="field">
@@ -343,7 +343,7 @@
     function updateFormulaBlurb() {
       const el = getEl('formula-string');
       const t = state.cbFormula === 'old'
-        ? 'damage = currentHP × 1 / (80 + (missing%)<sup>2</sup>), multiplied by (1 + extra efficiency%).'
+        ? 'damage = currentHP × 1 / (80 + (missing%)^2), multiplied by (1 + extra efficiency%).'
         : 'damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + extra efficiency%).';
       el.innerHTML = t;
       // Recompute header height in case line wraps changed
