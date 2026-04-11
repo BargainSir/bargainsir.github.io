@@ -62,7 +62,6 @@
       max-width: 1800px;
       margin: 0 auto;
       align-items: stretch;
-      min-height: calc(100vh - var(--header-h) - 20px);
     }
     .panel {
       background: var(--panel);
@@ -188,7 +187,6 @@
     <h1>Crushing Blow vs Prime Evils — HP progression per hit</h1>
     <p id="formula-blurb">
       CB formula: <span id="formula-string">damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + extra efficiency%).</span>
-      Deterministic CB: chance is accumulated and applied at fixed steps.
     </p>
   </header>
 
@@ -245,9 +243,6 @@
           <div class="canvas-wrap">
             <canvas id="chart"></canvas>
           </div>
-        </div>
-        <div class="foot-note">
-          Tip: Hover the chart to inspect HP after a given hit. The plot auto-fits to the no‑CB kill time (capped at 1000 hits) and renders at device pixel ratio for crisp text at any zoom.
         </div>
       </section>
 
@@ -539,7 +534,7 @@
         ctx.stroke();
         ctx.globalAlpha = 1;
         ctx.fillStyle = '#96a0b5';
-        ctx.fillText(`${fmtFixed((1 - fr) * 100, 0)}%`, pad.l - 8, y);
+        ctx.fillText(`${fmtFixed(100 - (1 - fr) * 100, 0)}%`, pad.l - 8, y);
       });
 
       // x ticks (10 ticks)
