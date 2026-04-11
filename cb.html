@@ -110,6 +110,43 @@
       border-color: #334155;
       box-shadow: 0 0 0 2px rgba(79,209,197,0.2);
     }
+    .hint {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+      margin: 0;
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .info {
+      border-radius: 100%;
+      background: #1b2130;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 10px;
+      margin-left: 3px;
+      position: relative;
+      cursor: help;
+    }
+    .info::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: 50%; transform: translateX(-50%);
+      bottom: 150%;
+      max-width: 260px;
+      white-space: normal;
+      padding: 8px 10px;
+      background: rgba(20,24,32,0.95);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--ink);
+      font-size: 11px; line-height: 1.3;
+      opacity: 0; pointer-events: none;
+      transition: opacity .15s;
+      box-shadow: var(--shadow);
+    }
+    .info:hover::after { opacity: 1; }
 
     .chart-inner { padding: 8px 12px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
     .legend {
@@ -205,15 +242,18 @@
             </div>
             <div class="field">
               <label for="maxHP">Target max HP</label>
-              <input id="maxHP" type="number" min="1" step="1000" value="5896800">
+              <input id="maxHP" type="number" min="1" step="1" value="5896800">
             </div>
             <div class="field">
               <label for="PDR">Target PDR%</label>
-              <input id="PDR" type="number" step="1" value="30">
+              <input id="PDR" type="number" step="1" value="25">
             </div>
             <div class="field">
-              <label for="flatDmg">Flat damage per hit</label>
-              <input id="flatDmg" type="number" min="0" step="100" value="10000">
+              <label for="flatDmg">
+                Flat damage per hit 
+                <span class="info" data-tip="Flat damage represents average physical damage after Crit/DS and before PDR%.">i</span>
+              </label>
+              <input id="flatDmg" type="number" min="0" step="100" value="18000">
             </div>
             <div class="field">
               <label for="cbChance">CB %</label>
@@ -225,6 +265,7 @@
             </div>
           </div>
         </div>
+        <div class="hint" style="display: none;"></div>
       </section>
 
       <!-- Chart -->
@@ -322,9 +363,9 @@
 
     // State
     const state = {
-      nHits: 1000, // auto-calculated
+      nHits: 5000, // auto-calculated
       maxHP: 5896800,
-      PDR: 30,
+      PDR: 25,
       flatDmg: 5000,
       cbChancePct: 100,
       cbExtraPct: 0,
@@ -354,7 +395,7 @@
 
     function readParams() {
       const maxHP = Math.max(1, Math.floor(Number(inputs.maxHP.value || 5896800)));
-      const PDR = Number(inputs.PDR.value || 30);
+      const PDR = Number(inputs.PDR.value || 25);
       const flatDmg = Math.max(0, Math.floor(Number(inputs.flatDmg.value || 0)));
       const cbChancePct = clamp(Number(inputs.cbChance.value || 0), 0, 100);
       const cbExtraPct = Number(inputs.cbExtra.value || 0);
@@ -371,9 +412,9 @@
     function computeAutoWindow(maxHP, flatDmg, PDR) {
       const physMult = (100 - (PDR || 0)) / 100;  // can be >1 for negative PDR
       const effFlat = flatDmg * physMult;
-      if (effFlat <= 0) return 1000; // can't kill with flat alone -> large window
+      if (effFlat <= 0) return 5000; // can't kill with flat alone -> large window
       const hits = Math.ceil(maxHP / effFlat);
-      return clamp(hits, 1, 1000);
+      return clamp(hits, 1, 5000);
     }
 
     // Core simulation
@@ -720,7 +761,7 @@
       readParams();
       updateFormulaBlurb();
 
-      // Auto window: ceil(maxHP / effectiveFlatDmg), capped at 1000; if effFlatDmg <= 0 → 1000
+      // Auto window: ceil(maxHP / effectiveFlatDmg), capped at 5000; if effFlatDmg <= 0 → 5000
       state.nHits = computeAutoWindow(state.maxHP, state.flatDmg, state.PDR);
 
       latestSim = simulate({
