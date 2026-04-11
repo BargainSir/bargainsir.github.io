@@ -117,9 +117,9 @@
     }
     .legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
     .legend-swatch { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
-    .legend .cb { background: var(--accent-2); box-shadow: 0 0 0 2px rgba(246,173,85,0.25); }
-    .legend .nocb { background: var(--accent); box-shadow: 0 0 0 2px rgba(79,209,197,0.25); }
-    .legend .dead { background: linear-gradient(90deg, var(--bad), var(--warn)); height: 3px; }
+    .legend .cb { background: var(--accent-2); }
+    .legend .nocb { background: var(--accent); }
+    .legend .dead { background: linear-gradient(90deg, var(--bad), var(--warn)); height: 2px; }
 
     .canvas-wrap {
       width: 100%;
@@ -137,7 +137,6 @@
       display: block;
     }
 
-    .summary { }
     .summary .content { display: grid; gap: 10px; }
     .kpis {
       display: grid;
@@ -186,7 +185,7 @@
   <header>
     <h1>Crushing Blow vs Prime Evils — HP progression per hit</h1>
     <p id="formula-blurb">
-      CB formula: <span id="formula-string">damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + extra efficiency%).</span>
+      CB formula: <span id="formula-string">damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + efficiency%).</span>
     </p>
   </header>
 
@@ -209,15 +208,19 @@
               <input id="maxHP" type="number" min="1" step="1000" value="5896800">
             </div>
             <div class="field">
+              <label for="PDR">Target PDR%</label>
+              <input id="PDR" type="number" step="1" value="30">
+            </div>
+            <div class="field">
               <label for="flatDmg">Flat damage per hit</label>
               <input id="flatDmg" type="number" min="0" step="100" value="10000">
             </div>
             <div class="field">
-              <label for="cbChance">CB proc chance %</label>
+              <label for="cbChance">CB %</label>
               <input id="cbChance" type="number" min="0" max="100" step="1" value="100">
             </div>
             <div class="field">
-              <label for="cbExtra">CB extra efficiency %</label>
+              <label for="cbExtra">CB efficiency %</label>
               <input id="cbExtra" type="number" min="0" step="1" value="0">
             </div>
           </div>
@@ -234,9 +237,6 @@
             </div>
             <div class="legend-item">
               <span class="legend-swatch nocb"></span> Without CB
-            </div>
-            <div class="legend-item">
-              <span class="legend-swatch dead"></span> 0 HP
             </div>
             <div class="legend-item" id="legend-window" style="margin-left:auto;color:var(--muted)"></div>
           </div>
@@ -261,11 +261,11 @@
                 <div class="value" id="val-nocb-ttk">–</div>
               </div>
               <div class="kpi good" id="kpi-dps">
-                <div class="label">DPS% with CB (same #hits window)</div>
+                <div class="label">DPS% with CB</div>
                 <div class="value" id="val-dps">–</div>
               </div>
               <div class="kpi" id="kpi-window">
-                <div class="label">Comparison window (hits)</div>
+                <div class="label">Comparison window</div>
                 <div class="value" id="val-window">–</div>
               </div>
             </div>
@@ -313,6 +313,7 @@
     // Parameters (bound to inputs)
     const inputs = {
       maxHP: getEl('maxHP'),
+      PDR: getEl('PDR'),
       flatDmg: getEl('flatDmg'),
       cbChance: getEl('cbChance'),
       cbExtra: getEl('cbExtra'),
@@ -323,6 +324,7 @@
     const state = {
       nHits: 1000, // auto-calculated
       maxHP: 5896800,
+      PDR: 30,
       flatDmg: 5000,
       cbChancePct: 100,
       cbExtraPct: 0,
@@ -343,8 +345,8 @@
     function updateFormulaBlurb() {
       const el = getEl('formula-string');
       const t = state.cbFormula === 'old'
-        ? 'damage = currentHP × 1 / (80 + (missing%)^2), multiplied by (1 + extra efficiency%).'
-        : 'damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + extra efficiency%).';
+        ? 'damage = currentHP × 1 / (80 + (missing%)^2), multiplied by (1 + efficiency%).'
+        : 'damage = currentHP × 1 / (70 + missing% × 10), multiplied by (1 + efficiency%).';
       el.innerHTML = t;
       // Recompute header height in case line wraps changed
       updateHeaderHeightVar();
@@ -352,26 +354,30 @@
 
     function readParams() {
       const maxHP = Math.max(1, Math.floor(Number(inputs.maxHP.value || 5896800)));
+      const PDR = Number(inputs.PDR.value || 30);
       const flatDmg = Math.max(0, Math.floor(Number(inputs.flatDmg.value || 0)));
       const cbChancePct = clamp(Number(inputs.cbChance.value || 0), 0, 100);
       const cbExtraPct = Number(inputs.cbExtra.value || 0);
       const cbFormula = inputs.cbFormula.value === 'old' ? 'old' : 'new';
 
       state.maxHP = maxHP;
+      state.PDR = PDR;
       state.flatDmg = flatDmg;
       state.cbChancePct = cbChancePct;
       state.cbExtraPct = cbExtraPct;
       state.cbFormula = cbFormula;
     }
 
-    function computeAutoWindow(maxHP, flatDmg) {
-      if (flatDmg <= 0) return 1000; // can't kill without CB -> default to cap
-      const hits = Math.ceil(maxHP / flatDmg);
+    function computeAutoWindow(maxHP, flatDmg, PDR) {
+      const physMult = (100 - (PDR || 0)) / 100;  // can be >1 for negative PDR
+      const effFlat = flatDmg * physMult;
+      if (effFlat <= 0) return 1000; // can't kill with flat alone -> large window
+      const hits = Math.ceil(maxHP / effFlat);
       return clamp(hits, 1, 1000);
     }
 
     // Core simulation
-    function simulate({nHits, maxHP, flatDmg, cbChancePct, cbExtraPct, cbFormula}) {
+    function simulate({nHits, maxHP, PDR, flatDmg, cbChancePct, cbExtraPct, cbFormula}) {
       const hpNo = [];
       const hpCB = [];
       const dmgNoPerHit = [];
@@ -383,6 +389,7 @@
       let cbMeter = 0; // deterministic accumulation
       const cbChance = cbChancePct / 100;
       const cbMult = 1 + (cbExtraPct / 100);
+      const physMult = (100 - (PDR || 0)) / 100; // can be >1 (neg PDR) or <0 (>100 PDR)
 
       let killHitNo = null;
       let killHitCB = null;
@@ -390,7 +397,7 @@
       for (let i = 1; i <= nHits; i++) {
         // Without CB
         if (curNo > 0) {
-          const dealt = Math.min(flatDmg, curNo);
+          const dealt = Math.min(Math.max(0, flatDmg * physMult), curNo);
           curNo -= dealt;
           dmgNoPerHit.push(dealt);
           if (curNo <= 0 && killHitNo === null) killHitNo = i;
@@ -412,14 +419,16 @@
             const frac = (cbFormula === 'old')
               ? 1 / (80 + missingPct * missingPct)
               : 1 / (70 + missingPct * 10);
-            let d = curCB * frac * cbMult;
-            d = Math.max(0, Math.min(d, curCB));
+
+            const baseCB = curCB * frac * cbMult; // before PDR
+            const d = Math.min(Math.max(0, baseCB * physMult), curCB);
             curCB -= d;
             cbDamageThisHit += d;
             procs--;
           }
+
           // Flat damage after CB
-          let fd = Math.min(flatDmg, Math.max(0, curCB));
+          const fd = Math.min(Math.max(0, flatDmg * physMult), Math.max(0, curCB));
           curCB -= fd;
           dmgCBPerHit.push(cbDamageThisHit + fd);
 
@@ -439,7 +448,7 @@
     }
 
     // Breakpoints
-    const bpPercents = [50, 25, 10, 5, 1, 0.1, 0];
+    const bpPercents = [50, 25, 10, 5, 1, 0];
 
     function hitsToReach(arr, maxHP, pct) {
       const thr = (pct <= 0 ? 0 : maxHP * (pct / 100));
@@ -711,12 +720,13 @@
       readParams();
       updateFormulaBlurb();
 
-      // Auto window: ceil(maxHP / flatDmg), capped at 1000; if flatDmg = 0 → 1000
-      state.nHits = computeAutoWindow(state.maxHP, state.flatDmg);
+      // Auto window: ceil(maxHP / effectiveFlatDmg), capped at 1000; if effFlatDmg <= 0 → 1000
+      state.nHits = computeAutoWindow(state.maxHP, state.flatDmg, state.PDR);
 
       latestSim = simulate({
         nHits: state.nHits,
         maxHP: state.maxHP,
+        PDR: state.PDR,
         flatDmg: state.flatDmg,
         cbChancePct: state.cbChancePct,
         cbExtraPct: state.cbExtraPct,
@@ -767,7 +777,7 @@
       inp.addEventListener('change', recalcAndRender);
     });
     // Wheel stepper only for numeric inputs
-    [inputs.maxHP, inputs.flatDmg, inputs.cbChance, inputs.cbExtra].forEach(inp => attachWheelStepper(inp));
+    [inputs.maxHP, inputs.PDR, inputs.flatDmg, inputs.cbChance, inputs.cbExtra].forEach(inp => attachWheelStepper(inp));
 
     // Resize handlers (keep canvas crisp on zoom/resize)
     let rAF = null;
