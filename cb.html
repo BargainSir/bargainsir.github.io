@@ -396,7 +396,7 @@
 
     function readParams() {
       const maxHP = Math.max(1, Math.floor(Number(inputs.maxHP.value || 5896800)));
-      const PDR = Number(inputs.PDR.value || 25);
+      const PDR = Number(inputs.PDR.value || 0);
       const flatDmg = Math.max(0, Math.floor(Number(inputs.flatDmg.value || 0)));
       const cbChancePct = clamp(Number(inputs.cbChance.value || 0), 0, 100);
       const cbExtraPct = Number(inputs.cbExtra.value || 0);
